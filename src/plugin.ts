@@ -1,6 +1,12 @@
 import type { Plugin } from '@opencode-ai/plugin';
 import { loadConfig } from './config.ts';
-import { getMetricsPath, appendMetric, formatSessionSummary, MetricRecord } from './metrics.ts';
+import {
+  getMetricsPath,
+  appendMetric,
+  formatSessionSummary,
+  formatToastSummary,
+  MetricRecord,
+} from './metrics.ts';
 import { stripAnsiFast } from './techniques/ansi.ts';
 import { truncate } from './techniques/truncate.ts';
 import {
@@ -18,7 +24,30 @@ import {
 export const RtkPlugin: Plugin = async ({ directory, client }) => {
   const config = await loadConfig(directory);
   const sessionMetrics: MetricRecord[] = [];
+  const idleTurnCounts = new Map<string, number>();
   const metricsPath = getMetricsPath(directory);
+  const handledCommandError = '__RTK_COMMAND_HANDLED__';
+
+  function resolveSessionID(value: { sessionID?: unknown; sessionId?: unknown }): string | null {
+    if (typeof value.sessionID === 'string' && value.sessionID.length > 0) {
+      return value.sessionID;
+    }
+
+    if (typeof value.sessionId === 'string' && value.sessionId.length > 0) {
+      return value.sessionId;
+    }
+
+    return null;
+  }
+
+  type CommandConfig = {
+    template: string;
+    description: string;
+  };
+
+  type RuntimeConfig = {
+    command?: Record<string, CommandConfig>;
+  };
 
   if (!config.enabled) {
     return {};
@@ -65,6 +94,38 @@ export const RtkPlugin: Plugin = async ({ directory, client }) => {
   }
 
   return {
+    config: async (runtimeConfig) => {
+      const cfg = runtimeConfig as RuntimeConfig;
+      cfg.command ??= {};
+      cfg.command.rtk = {
+        template: '/rtk',
+        description: 'Show RTK token savings summary for this session',
+      };
+    },
+
+    'command.execute.before': async (input: {
+      command: string;
+      sessionID: string;
+      arguments: string;
+    }) => {
+      if (input.command !== 'rtk') {
+        return;
+      }
+
+      const sessionID = resolveSessionID(input);
+      const records = sessionMetrics.filter((record) => record.sessionId === sessionID);
+
+      await client.tui.showToast({
+        body: {
+          title: 'RTK Savings',
+          message: formatToastSummary(records),
+          variant: 'info',
+        },
+      });
+
+      throw new Error(handledCommandError);
+    },
+
     'tool.execute.after': async (input, output) => {
       // Guard: no output to process
       if (!output.output || typeof output.output !== 'string') {
@@ -86,8 +147,10 @@ export const RtkPlugin: Plugin = async ({ directory, client }) => {
         }
 
         // Phase 2: Command-specific filters (bash tool only)
-        if (input.tool === 'bash' && input.args?.command) {
-          const command = String(input.args.command);
+        const toolArgs = input as { args?: { command?: unknown; filePath?: unknown } };
+
+        if (input.tool === 'bash' && toolArgs.args?.command) {
+          const command = String(toolArgs.args.command);
 
           // Build output filtering
           if (config.techniques.buildOutputFiltering) {
@@ -136,8 +199,8 @@ export const RtkPlugin: Plugin = async ({ directory, client }) => {
         }
 
         // Phase 3: Source code filtering (read tool only)
-        if (input.tool === 'read' && input.args?.filePath) {
-          const filePath = String(input.args.filePath);
+        if (input.tool === 'read' && toolArgs.args?.filePath) {
+          const filePath = String(toolArgs.args.filePath);
           const language = detectLanguage(filePath);
 
           if (language !== 'unknown' && config.techniques.sourceCodeFiltering !== 'none') {
@@ -178,8 +241,13 @@ export const RtkPlugin: Plugin = async ({ directory, client }) => {
 
         // Record if anything changed
         if (result !== original) {
+          const sessionID = resolveSessionID(input);
+          if (!sessionID) {
+            return;
+          }
+
           output.output = result;
-          await recordAndLog(original, result, input.tool, technique || 'unknown', input.sessionID);
+          await recordAndLog(original, result, input.tool, technique || 'unknown', sessionID);
         }
       } catch (error) {
         // Tier 3 passthrough: log error but preserve original output
@@ -194,12 +262,41 @@ export const RtkPlugin: Plugin = async ({ directory, client }) => {
     },
 
     event: async ({ event }) => {
-      if (event.type === 'session.idle' && config.logSavings && sessionMetrics.length > 0) {
+      if (event.type !== 'session.idle') {
+        return;
+      }
+
+      const sessionID = resolveSessionID(
+        event.properties as { sessionID?: unknown; sessionId?: unknown }
+      );
+      if (!sessionID) {
+        return;
+      }
+
+      const sessionRecords = sessionMetrics.filter((record) => record.sessionId === sessionID);
+      if (sessionRecords.length === 0) {
+        return;
+      }
+
+      if (config.logSavings) {
         await client.app.log({
           body: {
             service: 'rtk-plugin',
             level: 'info',
-            message: formatSessionSummary(sessionMetrics),
+            message: formatSessionSummary(sessionRecords),
+          },
+        });
+      }
+
+      const turns = (idleTurnCounts.get(sessionID) || 0) + 1;
+      idleTurnCounts.set(sessionID, turns);
+
+      if (config.showUpdateEvery > 0 && turns % config.showUpdateEvery === 0) {
+        await client.tui.showToast({
+          body: {
+            title: 'RTK Savings',
+            message: formatToastSummary(sessionRecords),
+            variant: 'info',
           },
         });
       }
