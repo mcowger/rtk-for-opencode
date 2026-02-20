@@ -1,6 +1,6 @@
 {
   "name": "rtk-for-opencode",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "OpenCode plugin implementing Rust Token Killer (RTK) token reduction techniques",
   "author": {
     "name": "Matt Cowger",
