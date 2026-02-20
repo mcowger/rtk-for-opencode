@@ -1,4 +1,5 @@
 import { appendFile, mkdir } from 'fs/promises';
+import os from 'os';
 import { dirname, resolve } from 'path';
 
 export interface MetricRecord {
@@ -65,6 +66,54 @@ export function formatSessionSummary(records: MetricRecord[]): string {
   return summary.trim();
 }
 
+export function formatToastSummary(records: MetricRecord[]): string {
+  if (records.length === 0) {
+    return 'No RTK savings recorded yet for this session';
+  }
+
+  const totalOriginal = records.reduce((sum, r) => sum + r.originalChars, 0);
+  const totalFiltered = records.reduce((sum, r) => sum + r.filteredChars, 0);
+  const totalSavings = calculateSavings(totalOriginal, totalFiltered);
+  const byTechnique = records.reduce(
+    (acc, r) => {
+      if (!acc[r.technique]) {
+        acc[r.technique] = { count: 0, original: 0, filtered: 0 };
+      }
+      acc[r.technique].count++;
+      acc[r.technique].original += r.originalChars;
+      acc[r.technique].filtered += r.filteredChars;
+      return acc;
+    },
+    {} as Record<string, { count: number; original: number; filtered: number }>
+  );
+
+  const techniques = Object.entries(byTechnique)
+    .map(([technique, data]) => ({
+      technique,
+      count: data.count,
+      savings: calculateSavings(data.original, data.filtered),
+    }))
+    .sort((a, b) => b.savings - a.savings);
+
+  let summary = `${totalSavings.toFixed(1)}% savings this session\n`;
+  summary += `${formatBytes(totalOriginal)} -> ${formatBytes(totalFiltered)} (${records.length} reductions)`;
+
+  const maxTechniques = Math.min(5, techniques.length);
+  if (maxTechniques > 0) {
+    summary += '\n\nBy strategy:';
+    for (let i = 0; i < maxTechniques; i++) {
+      const item = techniques[i];
+      summary += `\n- ${item.technique}: ${item.count}x, ${item.savings.toFixed(1)}%`;
+    }
+  }
+
+  if (techniques.length > maxTechniques) {
+    summary += `\n...and ${techniques.length - maxTechniques} more`;
+  }
+
+  return summary;
+}
+
 function formatBytes(chars: number): string {
   if (chars < 1024) return `${chars} chars`;
   const kb = chars / 1024;
@@ -74,5 +123,11 @@ function formatBytes(chars: number): string {
 }
 
 export function getMetricsPath(directory: string): string {
-  return resolve(directory, '.memory', 'rtk-metrics.jsonl');
+  const xdgDataHome = process.env.XDG_DATA_HOME;
+  const dataHome =
+    typeof xdgDataHome === 'string' && xdgDataHome.length > 0
+      ? xdgDataHome
+      : resolve(os.homedir(), '.local', 'share');
+
+  return resolve(dataHome, 'opencode', 'rtk', 'rtk-metrics.jsonl');
 }

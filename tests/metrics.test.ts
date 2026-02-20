@@ -6,6 +6,7 @@ import {
   calculateSavings,
   appendMetric,
   formatSessionSummary,
+  formatToastSummary,
   getMetricsPath,
   MetricRecord,
 } from '../src/metrics.ts';
@@ -165,10 +166,61 @@ describe('metrics', () => {
     });
   });
 
+  describe('formatToastSummary', () => {
+    it('returns fallback when no records', () => {
+      const summary = formatToastSummary([]);
+      expect(summary).toContain('No RTK savings recorded yet');
+    });
+
+    it('returns strategy-level detail sorted by savings', () => {
+      const records: MetricRecord[] = [
+        {
+          timestamp: '2024-01-01T00:00:00.000Z',
+          sessionId: 'test',
+          tool: 'bash',
+          technique: 'build-filter',
+          originalChars: 1000,
+          filteredChars: 100,
+          savingsPercent: 90,
+        },
+        {
+          timestamp: '2024-01-01T00:00:00.000Z',
+          sessionId: 'test',
+          tool: 'bash',
+          technique: 'ansi-stripping',
+          originalChars: 100,
+          filteredChars: 80,
+          savingsPercent: 20,
+        },
+      ];
+
+      const summary = formatToastSummary(records);
+      expect(summary).toContain('savings this session');
+      expect(summary).toContain('By strategy:');
+
+      const buildIndex = summary.indexOf('build-filter');
+      const ansiIndex = summary.indexOf('ansi-stripping');
+      expect(buildIndex).toBeGreaterThan(-1);
+      expect(ansiIndex).toBeGreaterThan(-1);
+      expect(buildIndex).toBeLessThan(ansiIndex);
+    });
+  });
+
   describe('getMetricsPath', () => {
-    it('returns correct path', () => {
-      const path = getMetricsPath('/project');
-      expect(path).toBe('/project/.memory/rtk-metrics.jsonl');
+    it('uses OpenCode shared data directory path', () => {
+      const originalXdgDataHome = process.env.XDG_DATA_HOME;
+      try {
+        process.env.XDG_DATA_HOME = '/tmp/opencode-test-data';
+
+        const path = getMetricsPath('/project');
+        expect(path).toBe('/tmp/opencode-test-data/opencode/rtk/rtk-metrics.jsonl');
+      } finally {
+        if (originalXdgDataHome === undefined) {
+          delete process.env.XDG_DATA_HOME;
+        } else {
+          process.env.XDG_DATA_HOME = originalXdgDataHome;
+        }
+      }
     });
   });
 });

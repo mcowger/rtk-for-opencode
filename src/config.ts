@@ -6,6 +6,7 @@ export type FilterLevel = 'none' | 'minimal' | 'aggressive';
 export interface RtkConfig {
   enabled: boolean;
   logSavings: boolean;
+  showUpdateEvery: number;
   techniques: {
     ansiStripping: boolean;
     truncation: { enabled: boolean; maxChars: number };
@@ -22,6 +23,7 @@ export interface RtkConfig {
 export const DEFAULT_CONFIG: RtkConfig = {
   enabled: true,
   logSavings: true,
+  showUpdateEvery: 10,
   techniques: {
     ansiStripping: true,
     truncation: { enabled: true, maxChars: 10000 },
@@ -36,9 +38,16 @@ export const DEFAULT_CONFIG: RtkConfig = {
 };
 
 export function mergeConfig(base: RtkConfig, override: Partial<RtkConfig>): RtkConfig {
+  const rawShowUpdateEvery = override.showUpdateEvery;
+  const showUpdateEvery =
+    typeof rawShowUpdateEvery === 'number' && Number.isInteger(rawShowUpdateEvery)
+      ? Math.max(0, rawShowUpdateEvery)
+      : base.showUpdateEvery;
+
   return {
     ...base,
     ...override,
+    showUpdateEvery,
     techniques: {
       ...base.techniques,
       ...(override.techniques || {}),

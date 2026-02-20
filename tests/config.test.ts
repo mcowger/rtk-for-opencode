@@ -18,6 +18,7 @@ describe('config', () => {
     it('has expected defaults', () => {
       expect(DEFAULT_CONFIG.enabled).toBe(true);
       expect(DEFAULT_CONFIG.logSavings).toBe(true);
+      expect(DEFAULT_CONFIG.showUpdateEvery).toBe(10);
       expect(DEFAULT_CONFIG.techniques.ansiStripping).toBe(true);
       expect(DEFAULT_CONFIG.techniques.truncation.maxChars).toBe(10000);
       expect(DEFAULT_CONFIG.techniques.sourceCodeFiltering).toBe('minimal');
@@ -32,9 +33,18 @@ describe('config', () => {
     });
 
     it('overrides top-level values', () => {
-      const result = mergeConfig(DEFAULT_CONFIG, { enabled: false });
+      const result = mergeConfig(DEFAULT_CONFIG, { enabled: false, showUpdateEvery: 5 });
       expect(result.enabled).toBe(false);
-      expect(result.logSavings).toBe(true); // unchanged
+      expect(result.logSavings).toBe(true);
+      expect(result.showUpdateEvery).toBe(5);
+    });
+
+    it('normalizes invalid showUpdateEvery values', () => {
+      const negative = mergeConfig(DEFAULT_CONFIG, { showUpdateEvery: -5 });
+      expect(negative.showUpdateEvery).toBe(0);
+
+      const decimal = mergeConfig(DEFAULT_CONFIG, { showUpdateEvery: 2.5 });
+      expect(decimal.showUpdateEvery).toBe(DEFAULT_CONFIG.showUpdateEvery);
     });
 
     it('merges nested technique config', () => {
@@ -44,7 +54,7 @@ describe('config', () => {
         },
       });
       expect(result.techniques.ansiStripping).toBe(false);
-      expect(result.techniques.buildOutputFiltering).toBe(true); // unchanged
+      expect(result.techniques.buildOutputFiltering).toBe(true);
     });
 
     it('deep merges truncation settings', () => {
@@ -54,7 +64,7 @@ describe('config', () => {
         },
       });
       expect(result.techniques.truncation.maxChars).toBe(5000);
-      expect(result.techniques.truncation.enabled).toBe(true); // unchanged
+      expect(result.techniques.truncation.enabled).toBe(true);
     });
 
     it('deep merges smartTruncation settings', () => {
@@ -64,7 +74,7 @@ describe('config', () => {
         },
       });
       expect(result.techniques.smartTruncation.maxLines).toBe(100);
-      expect(result.techniques.smartTruncation.enabled).toBe(true); // unchanged
+      expect(result.techniques.smartTruncation.enabled).toBe(true);
     });
   });
 
@@ -85,7 +95,7 @@ describe('config', () => {
       const config = await loadConfig(testDir);
       expect(config.enabled).toBe(false);
       expect(config.logSavings).toBe(false);
-      expect(config.techniques.ansiStripping).toBe(true); // from defaults
+      expect(config.techniques.ansiStripping).toBe(true);
     });
 
     it('merges nested technique settings from file', async () => {
@@ -104,7 +114,7 @@ describe('config', () => {
       const config = await loadConfig(testDir);
       expect(config.techniques.sourceCodeFiltering).toBe('aggressive');
       expect(config.techniques.truncation.maxChars).toBe(5000);
-      expect(config.techniques.truncation.enabled).toBe(true); // from defaults
+      expect(config.techniques.truncation.enabled).toBe(true);
     });
 
     it('gracefully handles invalid JSON', async () => {

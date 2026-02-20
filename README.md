@@ -4,6 +4,9 @@ An OpenCode plugin implementing token reduction techniques from the Rust Token K
 
 > Reduce LLM token consumption by 60-90% while preserving essential information
 
+> [!IMPORTANT]
+> These filtering techniques are derived from the RTK project: https://github.com/rtk-ai/rtk
+
 ## Features
 
 This plugin intercepts tool results in OpenCode and applies intelligent filtering:
@@ -49,6 +52,7 @@ Create `.opencode/rtk-config.json`:
 {
   "enabled": true,
   "logSavings": true,
+  "showUpdateEvery": 10,
   "techniques": {
     "ansiStripping": true,
     "truncation": { "enabled": true, "maxChars": 10000 },
@@ -65,21 +69,27 @@ Create `.opencode/rtk-config.json`:
 
 ### Configuration Options
 
-| Option                                | Type                                  | Description                                                   |
-| ------------------------------------- | ------------------------------------- | ------------------------------------------------------------- |
-| `enabled`                             | boolean                               | Master switch to enable/disable the plugin                    |
-| `logSavings`                          | boolean                               | Log token savings to OpenCode and `.memory/rtk-metrics.jsonl` |
-| `techniques.ansiStripping`            | boolean                               | Remove color codes and formatting from terminal output        |
-| `techniques.truncation.enabled`       | boolean                               | Hard truncate long outputs                                    |
-| `techniques.truncation.maxChars`      | number                                | Maximum characters before truncation                          |
-| `techniques.sourceCodeFiltering`      | `"none" \| "minimal" \| "aggressive"` | Level of source code filtering                                |
-| `techniques.smartTruncation.enabled`  | boolean                               | Intelligent truncation preserving structure                   |
-| `techniques.smartTruncation.maxLines` | number                                | Maximum lines before smart truncation                         |
-| `techniques.testOutputAggregation`    | boolean                               | Compact test output (keep failures only)                      |
-| `techniques.buildOutputFiltering`     | boolean                               | Remove compilation noise, keep errors                         |
-| `techniques.gitCompaction`            | boolean                               | Compact git diff/status/log output                            |
-| `techniques.searchResultGrouping`     | boolean                               | Group grep results by file                                    |
-| `techniques.linterAggregation`        | boolean                               | Aggregate linter output by rule/file                          |
+| Option                                | Type                                  | Description                                                                                                            |
+| ------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `enabled`                             | boolean                               | Master switch to enable/disable the plugin                                                                             |
+| `logSavings`                          | boolean                               | Log token savings to OpenCode data dir: `$XDG_DATA_HOME/opencode/rtk/rtk-metrics.jsonl` (uses XDG fallback when unset) |
+| `showUpdateEvery`                     | number                                | Show a session savings toast every N idle turns (`0` disables)                                                         |
+| `techniques.ansiStripping`            | boolean                               | Remove color codes and formatting from terminal output                                                                 |
+| `techniques.truncation.enabled`       | boolean                               | Hard truncate long outputs                                                                                             |
+| `techniques.truncation.maxChars`      | number                                | Maximum characters before truncation                                                                                   |
+| `techniques.sourceCodeFiltering`      | `"none" \| "minimal" \| "aggressive"` | Level of source code filtering                                                                                         |
+| `techniques.smartTruncation.enabled`  | boolean                               | Intelligent truncation preserving structure                                                                            |
+| `techniques.smartTruncation.maxLines` | number                                | Maximum lines before smart truncation                                                                                  |
+| `techniques.testOutputAggregation`    | boolean                               | Compact test output (keep failures only)                                                                               |
+| `techniques.buildOutputFiltering`     | boolean                               | Remove compilation noise, keep errors                                                                                  |
+| `techniques.gitCompaction`            | boolean                               | Compact git diff/status/log output                                                                                     |
+| `techniques.searchResultGrouping`     | boolean                               | Group grep results by file                                                                                             |
+| `techniques.linterAggregation`        | boolean                               | Aggregate linter output by rule/file                                                                                   |
+
+### Runtime Commands
+
+- `/rtk` is auto-registered by the plugin (no command file needed)
+- Running `/rtk` shows a detailed per-strategy savings toast for the active session
 
 ## Technique Details
 
@@ -205,7 +215,7 @@ To determine which techniques are most valuable:
 
 1. Start with all enabled
 2. Disable one technique at a time in `rtk-config.json`
-3. Check `.memory/rtk-metrics.jsonl` for savings per technique
+3. Check `$XDG_DATA_HOME/opencode/rtk/rtk-metrics.jsonl` for savings per technique (OpenCode uses XDG defaults when `XDG_DATA_HOME` is not set)
 4. Session summaries appear in OpenCode logs on `session.idle`
 
 Example metrics file:
