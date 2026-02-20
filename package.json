@@ -1,31 +1,49 @@
 {
-  "name": "{{moduleName}}",
-  "version": "0.0.1",
-  "description": "{{description}}",
+  "name": "rtk-for-opencode",
+  "version": "0.1.0",
+  "description": "OpenCode plugin implementing Rust Token Killer (RTK) token reduction techniques",
   "author": {
-    "name": "{{authorName}}",
-    "email": "{{authorEmail}}"
+    "name": "Your Name",
+    "email": "your.email@example.com"
   },
   "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./plugin": {
+      "types": "./dist/plugin.d.ts",
+      "default": "./dist/plugin.js"
     }
   },
   "repository": {
     "type": "git",
-    "url": "{{repositoryUrl}}"
+    "url": "https://github.com/yourusername/rtk-for-opencode"
   },
   "publishConfig": {
     "access": "public"
   },
   "files": [
     "dist",
-    "src/version.ts"
+    "README.md",
+    "LICENSE"
   ],
+  "keywords": [
+    "opencode",
+    "plugin",
+    "tokens",
+    "compression",
+    "rtk",
+    "ai",
+    "llm"
+  ],
+  "peerDependencies": {
+    "@opencode-ai/plugin": "^0.x"
+  },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@opencode-ai/plugin": "^0.x",
     "@types/node": "^20.11.5",
     "@typescript-eslint/eslint-plugin": "8.47.0",
     "@typescript-eslint/parser": "8.47.0",
